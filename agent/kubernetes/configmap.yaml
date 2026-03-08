@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: triage-agent-config
+  namespace: default
+data:
+  GRAFANA_URL: "http://lgtm:3001"
+  OLLAMA_HOST: "host.minikube.internal"
+  # URLs for MCP servers in-cluster
+  GITHUB_MCP_URL: "http://mcp-github:8080/sse"
+  KUBERNETES_MCP_URL: "http://mcp-kubernetes:8080/sse"
+  GRAFANA_MCP_URL: "http://mcp-grafana:8080/sse"

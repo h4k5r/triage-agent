@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lgtm-config
+  labels:
+    app: lgtm
+data:
+  GF_SECURITY_ADMIN_PASSWORD: "admin"

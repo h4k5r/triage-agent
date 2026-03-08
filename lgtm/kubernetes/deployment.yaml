@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm
+  labels:
+    app: lgtm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lgtm
+  template:
+    metadata:
+      labels:
+        app: lgtm
+    spec:
+      containers:
+        - name: lgtm
+          image: triage-agent-lgtm:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: grafana
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+          envFrom:
+            - configMapRef:
+                name: lgtm-config
+          volumeMounts:
+            - name: grafana-data
+              mountPath: /data/grafana
+            - name: prometheus-data
+              mountPath: /data/prometheus
+            - name: loki-data
+              mountPath: /data/loki
+            - name: tempo-data
+              mountPath: /data/tempo
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+      volumes:
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: lgtm-data-grafana
+        - name: prometheus-data
+          persistentVolumeClaim:
+            claimName: lgtm-data-prometheus
+        - name: loki-data
+          persistentVolumeClaim:
+            claimName: lgtm-data-loki
+        - name: tempo-data
+          persistentVolumeClaim:
+            claimName: lgtm-data-tempo

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-typescript-app-config
+  labels:
+    app: node-typescript-app
+data:
+  NODE_ENV: "production"
+  OTEL_SERVICE_NAME: "node-typescript-app"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+  # Note: The OTLP endpoint in k8s will depend on how you deploy the LGTM stack (e.g. otel-collector svc). 
+  # This default assumes an internal kubernetes service named 'lgtm' exists on port 4318 in the same namespace.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://lgtm:4318"

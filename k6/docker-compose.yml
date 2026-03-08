@@ -1,0 +1,11 @@
+services:
+  k6:
+    image: grafana/k6:latest
+    network_mode: "host"
+    volumes:
+      - ./dist:/scripts
+    environment:
+      - API_URL=${API_URL:-http://host.docker.internal:3000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: run /scripts/script.js

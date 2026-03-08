@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-kubernetes-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcp-kubernetes-role
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "services", "nodes", "namespaces", "configmaps"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcp-kubernetes-binding
+subjects:
+- kind: ServiceAccount
+  name: mcp-kubernetes-sa
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: mcp-kubernetes-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-kubernetes
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-kubernetes
+  template:
+    metadata:
+      labels:
+        app: mcp-kubernetes
+    spec:
+      serviceAccountName: mcp-kubernetes-sa
+      containers:
+      - name: mcp-server
+        image: mcp-kubernetes:latest
+        imagePullPolicy: Never
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-kubernetes
+spec:
+  selector:
+    app: mcp-kubernetes
+  ports:
+  - port: 8080
+    targetPort: 8080

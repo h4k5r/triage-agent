@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-github
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-github
+  template:
+    metadata:
+      labels:
+        app: mcp-github
+    spec:
+      containers:
+      - name: mcp-server
+        image: mcp-github:latest
+        imagePullPolicy: Never
+        envFrom:
+        - secretRef:
+            name: mcp-github-env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-github
+spec:
+  selector:
+    app: mcp-github
+  ports:
+  - port: 8080
+    targetPort: 8080

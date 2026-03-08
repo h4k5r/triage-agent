@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-grafana
+  template:
+    metadata:
+      labels:
+        app: mcp-grafana
+    spec:
+      containers:
+      - name: mcp-server
+        image: mcp-grafana:latest
+        imagePullPolicy: Never
+        args: ["--url", "http://lgtm:3001", "--user", "admin", "--password", "admin"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-grafana
+spec:
+  selector:
+    app: mcp-grafana
+  ports:
+  - port: 8080
+    targetPort: 8080
