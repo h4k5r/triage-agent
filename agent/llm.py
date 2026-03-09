@@ -17,7 +17,7 @@ def get_llm() -> ChatOllama:
         model=ollama_model,
         base_url=ollama_url,
         temperature=0.1, # Low temperature for analytical triage tasks
-        num_ctx=8192,    # Increased context for 54+ tools
+        num_ctx=32768,    # Increased context for 54+ tools
     )
     
     return llm

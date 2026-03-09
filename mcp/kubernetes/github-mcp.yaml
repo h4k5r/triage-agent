@@ -15,7 +15,7 @@ spec:
       containers:
       - name: mcp-server
         image: mcp-github:latest
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         stdin: true
         tty: true
         envFrom:

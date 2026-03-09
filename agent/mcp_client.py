@@ -15,22 +15,26 @@ async def get_mcp_tools(stack: AsyncExitStack) -> List[BaseTool]:
     """
     tools = []
     
-    # We define the remote endpoints. For local development, they map to the port-forwards.
-    # In production, they are injected via the Kubernetes ConfigMap.
+    # Environment variable names matching the Kubernetes ConfigMap
+    # Fallbacks provided for local testing via port-forwards
     endpoints = [
-        # os.environ.get("MCP_GITHUB_URL", "http://localhost:8081"),
-        os.environ.get("MCP_GRAFANA_URL", "http://localhost:8082"), 
-        # os.environ.get("MCP_KUBERNETES_URL", "http://localhost:8082")
+        os.environ.get("GITHUB_MCP_URL", "http://localhost:8081"),
+        os.environ.get("GRAFANA_MCP_URL", "http://localhost:8082"), 
+        os.environ.get("KUBERNETES_MCP_URL", "http://localhost:8081")
     ]
     
-    # Connect via SSE. We must keep the sessions alive as long as the tools are used.
-    from contextlib import AsyncExitStack
-    
     for url in endpoints:
+        # Avoid empty strings if some env vars are not set
+        if not url:
+            continue
+            
         print(f"[+] Connecting to MCP Server at {url}")
         try:
             # We connect via the async HTTP side channel (SSE)
-            streams = await stack.enter_async_context(sse_client(f"{url}/sse"))
+            # Most MCP servers expose the SSE endpoint at /sse
+            sse_url = f"{url}/sse" if not url.endswith("/sse") else url
+            
+            streams = await stack.enter_async_context(sse_client(sse_url))
             read_stream, write_stream = streams
             
             session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
@@ -40,11 +44,9 @@ async def get_mcp_tools(stack: AsyncExitStack) -> List[BaseTool]:
             all_mcp_tools = await load_mcp_tools(session)
             
             # Filter tools based on whitelist (DISABLED FOR TESTING - ALLOWING ALL TOOLS)
-            active_tools = all_mcp_tools # [t for t in all_mcp_tools if t.name in TOOL_WHITELIST]
+            active_tools = all_mcp_tools 
             
             print(f"    -> Loaded {len(active_tools)} tools.")
-            # if active_tools:
-            #    print(f"    -> Active tools: {', '.join([t.name for t in active_tools])}")
             
             # Inform LangGraph that if a tool throws an error
             for tool in active_tools:
