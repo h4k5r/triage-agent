@@ -23,17 +23,6 @@ async def get_mcp_tools(stack: AsyncExitStack) -> List[BaseTool]:
         # os.environ.get("MCP_KUBERNETES_URL", "http://localhost:8082")
     ]
     
-    # To keep the LLM focused and reduce prompt noise, we whitelist only the most 
-    # useful tools for a Triage agent. 54+ tools can confuse smaller local models.
-    TOOL_WHITELIST = [
-        "query_loki_logs", 
-        "query_loki_stats",
-        "list_loki_label_values",
-        "query_prometheus",
-        "list_prometheus_metric_names",
-        "list_datasources"
-    ]
-    
     # Connect via SSE. We must keep the sessions alive as long as the tools are used.
     from contextlib import AsyncExitStack
     
