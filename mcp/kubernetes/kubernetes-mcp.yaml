@@ -46,6 +46,8 @@ spec:
       - name: mcp-server
         image: mcp-kubernetes:latest
         imagePullPolicy: Never
+        stdin: true
+        tty: true
 ---
 apiVersion: v1
 kind: Service

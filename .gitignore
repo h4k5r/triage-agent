@@ -49,3 +49,9 @@ data/
 # Large binaries/images
 *.iso
 *.img
+
+# Logs
+*.log
+logs/
+k6_traffic.log
+agent_output.txt

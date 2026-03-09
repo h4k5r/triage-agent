@@ -16,6 +16,8 @@ spec:
       - name: mcp-server
         image: mcp-github:latest
         imagePullPolicy: Never
+        stdin: true
+        tty: true
         envFrom:
         - secretRef:
             name: mcp-github-env

@@ -16,7 +16,10 @@ spec:
       - name: mcp-server
         image: mcp-grafana:latest
         imagePullPolicy: Never
-        args: ["--url", "http://lgtm:3001", "--user", "admin", "--password", "admin"]
+        args: ["-transport", "sse", "-address", "0.0.0.0:8080"]
+        env:
+        - name: GRAFANA_URL
+          value: "http://admin:admin@lgtm:3001"
 ---
 apiVersion: v1
 kind: Service
