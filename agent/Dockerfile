@@ -18,5 +18,8 @@ COPY . .
 # Install the project
 RUN uv sync --frozen
 
+# Expose the FastAPI port
+EXPOSE 8000
+
 # Run the agent
 CMD ["uv", "run", "main.py"]

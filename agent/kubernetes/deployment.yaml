@@ -17,6 +17,9 @@ spec:
       - name: agent
         image: triage-agent-agent:latest
         imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http-api
         env:
         - name: PYTHONUNBUFFERED
           value: "1"

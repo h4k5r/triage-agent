@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: triage-agent-api
+  namespace: default
+spec:
+  selector:
+    app: triage-agent
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http

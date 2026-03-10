@@ -5,7 +5,7 @@ metadata:
   namespace: default
 data:
   GRAFANA_URL: "http://lgtm:3001"
-  OLLAMA_HOST: "host.minikube.internal"
+  OLLAMA_HOST: "172.20.10.4" # Primary host IP verified for Ollama connectivity
   OLLAMA_MODEL: "qwen3.5:9b-q8_0"
   # URLs for MCP servers in-cluster
   GITHUB_MCP_URL: "http://mcp-github:8080/sse"

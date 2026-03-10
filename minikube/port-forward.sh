@@ -26,6 +26,9 @@ kubectl port-forward svc/mcp-github 8080:8080 &
 kubectl port-forward svc/mcp-kubernetes 8081:8080 &
 kubectl port-forward svc/mcp-grafana 8082:8080 &
 
+echo "Forwarding AI Triage Agent API to port 8000..."
+kubectl port-forward svc/triage-agent-api 8000:8000 &
+
 echo "=========================================================="
 echo " Success! Traffic is now routing from your host into the cluster."
 echo " Press Ctrl+C at any time to stop forwarding."
