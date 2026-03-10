@@ -21,7 +21,8 @@ graph TD
     tempo --> grafana
     
     %% AI Agent & Tools
-    agent{"🧠 AI Triage Agent (Python/LangChain)"} <-->|Prompting| ollama[("🤖 Local Ollama (gpt-oss)")]
+    ui["💻 Agent UI (Next.js/React)"] <-->|REST API| agent{"🧠 AI Triage Agent (FastAPI)"}
+    agent <-->|Prompting| ollama[("🤖 Local Ollama")]
     
     %% MCP Servers
     agent <-->|MCP Protocol| mcp_grafana["🛠️ Grafana MCP"]
@@ -53,9 +54,10 @@ The toolbelt for the AI Agent. This directory contains configurations and Docker
 *   **GitHub MCP:** Allows the AI to inspect commits, PRs, and repository history to find the code changes that caused an issue.
 
 ### 5. The AI Agent (`agent/`)
-The "Brain" of the operation. This is a Python application built with **uv** and **LangChain**. It uses a local **Ollama** LLM (e.g., `deepseek-r1` or `gpt-oss`) as its reasoning engine. The agent is configured to connect to the MCP servers, evaluate alerts, and determine the root cause of application failures proactively.
+The "Brain" of the operation. This is a **FastAPI** Python application built with **uv** and **LangGraph/LangChain**. It uses a local **Ollama** LLM (e.g., `qwen3.5:9b`) as its reasoning engine. The agent serves a REST API (`/triage`) and is configured to autonomously connect to the MCP servers, evaluate alerts, and determine the root cause of application failures proactively.
 
-*(Note: The AI reasoning logic is currently under active development).*
+### 6. The User Interface (`agent-ui/`)
+A premium, dark-mode chat interface built with **Next.js**, **React**, and **Material UI**. It connects to the AI Agent's REST API, providing SREs with a natural language interface to query cluster state, view logs, and troubleshoot incidents.
 
 ## � Requirements
 
@@ -88,9 +90,9 @@ sh check-requirements.sh
 
 ### 1. Initial Setup
 
-1.  **Start Ollama:** Ensure you have Ollama installed and running on your host machine.
+1.  **Start Ollama:** Run the provided script to start Ollama with the correct host binding (`0.0.0.0`) so the Kubernetes cluster can communicate with it:
     ```bash
-    ollama run gpt-oss:latest # Or your preferred model
+    ./start-ollama.sh
     ```
 2.  **Configure GitHub Token:**
     *   Create a file at `mcp/.env`.
@@ -123,14 +125,16 @@ Once the cluster is running, you need to simulate user activity (and errors) for
 
 Once the stack is running via Minikube, you can access the essential services at the following local ports:
 
+*   **Agent Chat UI:** `http://localhost:3002` (After running `npm run dev` in `agent-ui/`)
+*   **Agent REST API:** `http://localhost:8000/triage`
 *   **Dummy App API:** `http://localhost:3000`
 *   **Grafana Dashboard:** `http://localhost:3001` (u: `admin`, p: `admin`)
-*   **AI Agent Logs:** Either `docker logs -f triage-agent-agent-1` or via `kubectl logs -f deploy/triage-agent`.
 
 ---
 
 ## 🛠️ Tech Stack Highlights
-*   **Agent Logic:** Python 3.12, LangChain, MCP Python SDK, `uv` Package Manager, local Ollama LLMs.
+*   **Agent Backend:** FastAPI, Python 3.12, LangGraph, MCP SDK, `uv` Package Manager, local Ollama LLMs.
+*   **Agent Frontend:** Next.js, React, Material UI, Framer Motion.
 *   **App & Testing:** Node.js, TypeScript, Express, OpenTelemetry JS, Grafana k6.
 *   **Observability:** Grafana, Loki (Logs), Tempo (Traces), Mimir/Prometheus (Metrics).
-*   **Infrastructure:** Docker Compose, Kubernetes, Minikube.
+*   **Infrastructure:** Kubernetes, Minikube.
