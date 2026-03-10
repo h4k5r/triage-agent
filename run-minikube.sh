@@ -35,8 +35,8 @@ kubectl apply -f mcp/kubernetes/
 echo "[4/6] Deploying Node Application..."
 kubectl apply -f dummy-app/kubernetes/
 
-echo "[5/6] Deploying AI Triage Agent..."
-kubectl apply -f agent/kubernetes/
+#echo "[5/6] Deploying AI Triage Agent..."
+#kubectl apply -f agent/kubernetes/
 
 echo "[6/6] Waiting for deployments to become ready (this may take a minute)..."
 kubectl rollout status deployment/lgtm
@@ -44,7 +44,7 @@ kubectl rollout status deployment/node-typescript-app
 kubectl rollout status deployment/mcp-kubernetes
 kubectl rollout status deployment/mcp-github
 kubectl rollout status deployment/mcp-grafana
-kubectl rollout status deployment/triage-agent
+#kubectl rollout status deployment/triage-agent
 
 echo "=========================================================="
 echo " All done! The Kubernetes stack is fully live."

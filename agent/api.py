@@ -48,7 +48,18 @@ async def lifespan(app: FastAPI):
         
     print("\n[+] Lifespan shutdown: Cleaning up resources...")
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="AI Triage Agent API", lifespan=lifespan)
+
+# Allow all origins for the browser UI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def set_agent(executor, tools):
     """Fallback for interactive mode or testing"""
