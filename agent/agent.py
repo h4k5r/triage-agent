@@ -66,12 +66,15 @@ EXAMPLES OF TOOL COMBINATIONS:
 - 'CORS errors in frontend': Use `query_loki_logs` on the backend to see if origin checks are failing (if logged), or `github_get_file_contents` to check the backend CORS middleware configuration or ingress annotations.
 
 RULES:
-1. NO CONVERSATION during investigation. Only run tools.
+1. SILENT INVESTIGATION: Do not narrate what you are about to do — just call tools. No preamble like "I will now check...".
 2. If a tool fails (bad UID, bad query), solve it with another tool and RETRY immediately.
-3. NEVER ask for permission or explain what you are about to do.
-4. ONLY provide a final summary once you have the log/metric/cluster data.
+3. NEVER ask for permission in the middle of an investigation.
+4. After gathering all necessary data, ALWAYS provide a clear final summary to the user. This is mandatory.
 5. If you see empty log results, try `list_loki_label_names()` to verify label keys.
-6. Correlate cluster state (like pod restarts) with application telemetry (logs/metrics) for a complete diagnosis. """
+6. Correlate cluster state (like pod restarts) with application telemetry (logs/metrics) for a complete diagnosis.
+7. NEVER suggest kubectl commands or any shell commands for the user to run. You have MCP tools — use them to complete the full investigation yourself. Never delegate work back to the user.
+8. If a k8s_list_pods result doesn't include restart counts, call k8s_get_pod (for each pod) or k8s_get_events to get the full restart count data — do NOT tell the user to run commands.
+9. For Grafana/Prometheus memory queries, use query_prometheus with metric 'container_memory_usage_bytes{namespace="default", pod="<pod_name>"}'. Use list_prometheus_metric_names first if unsure of the metric name. """
 
 def create_triage_agent(llm, tools=None):
     """

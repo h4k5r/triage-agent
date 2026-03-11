@@ -18,7 +18,7 @@ async def get_mcp_tools(stack: AsyncExitStack) -> List[BaseTool]:
     # Environment variable names matching the Kubernetes ConfigMap
     # Fallbacks provided for local testing via port-forwards
     endpoints = [
-        os.environ.get("GITHUB_MCP_URL", "http://localhost:8081"),
+        os.environ.get("GITHUB_MCP_URL", "http://localhost:8080"),
         os.environ.get("GRAFANA_MCP_URL", "http://localhost:8082"), 
         os.environ.get("KUBERNETES_MCP_URL", "http://localhost:8081")
     ]
@@ -34,7 +34,9 @@ async def get_mcp_tools(stack: AsyncExitStack) -> List[BaseTool]:
             # Most MCP servers expose the SSE endpoint at /sse
             sse_url = f"{url}/sse" if not url.endswith("/sse") else url
             
-            streams = await stack.enter_async_context(sse_client(sse_url))
+            streams = await stack.enter_async_context(
+                sse_client(sse_url, timeout=300, sse_read_timeout=3600)
+            )
             read_stream, write_stream = streams
             
             session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
