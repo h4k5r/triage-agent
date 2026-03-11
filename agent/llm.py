@@ -17,7 +17,7 @@ def get_llm() -> ChatOllama:
         model=ollama_model,
         base_url=ollama_url,
         temperature=0.1, # Low temperature for analytical triage tasks
-        num_ctx=262144,    # Increased context for 54+ tools
+        num_ctx=16384,     # ~2.3GB KV cache, fits in 3GB free VRAM
         timeout=300,      # High timeout for complex multi-tool reasoning
     )
     
