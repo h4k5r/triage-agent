@@ -10,9 +10,17 @@ echo "=========================================================="
 # Kill any existing kubectl port-forward processes to avoid binding errors
 pkill -f "kubectl port-forward svc/lgtm" || true
 pkill -f "kubectl port-forward svc/node-typescript-app" || true
+pkill -f "kubectl port-forward svc/mcp-github" || true
+pkill -f "kubectl port-forward svc/mcp-kubernetes" || true
+pkill -f "kubectl port-forward svc/mcp-grafana" || true
+pkill -f "kubectl port-forward svc/triage-agent-api" || true
+pkill -f "kubectl port-forward svc/triage-agent-ui" || true
 
 echo "Forwarding LGTM Grafana dashboard to port 3001..."
 kubectl port-forward svc/lgtm 3001:3001 &
+
+echo "Forwarding Agent UI to port 3002..."
+kubectl port-forward svc/triage-agent-ui 3002:3002 &
 
 echo "Forwarding LGTM OTLP endpoints to ports 4317 & 4318..."
 kubectl port-forward svc/lgtm 4317:4317 &

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triage-agent-ui
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: triage-agent-ui
+  template:
+    metadata:
+      labels:
+        app: triage-agent-ui
+    spec:
+      containers:
+      - name: ui
+        image: triage-agent-ui:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3002
+          name: http
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://localhost:8000/triage"
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+          requests:
+            memory: "128Mi"
+            cpu: "100m"

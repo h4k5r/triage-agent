@@ -9,132 +9,105 @@ At its core, the project provides a fully instrumented, locally deployable ecosy
 ```mermaid
 graph TD
     %% Node.js Application & Traffic
-    k6[("🚀 k6 Load Tester")] -->|Generates Traffic| app["📦 dummy-app (Node.js/Express)"]
+    k6[("🚀 k6 Load Tester")] -->|Traffic| app["📦 dummy-app (Node.js)"]
     
     %% Observability Stack
-    app -->|OpenTelemetry Data| otel["📡 OTel Collector"]
-    otel -->|Metrics| prom[("📈 Mimir/Prometheus")]
+    app -->|OTel| otel["📡 OTel Collector"]
+    otel -->|Metrics| prom[("📈 Mimir")]
     otel -->|Logs| loki[("📜 Loki")]
     otel -->|Traces| tempo[("🔗 Tempo")]
     prom --> grafana["📊 Grafana Dashboard"]
     loki --> grafana
     tempo --> grafana
     
-    %% AI Agent & Tools
-    ui["💻 Agent UI (Next.js/React)"] <-->|REST API| agent{"🧠 AI Triage Agent (FastAPI)"}
-    agent <-->|Prompting| ollama[("🤖 Local Ollama")]
+    %% AI Agent & UI
+    ui["💻 Agent UI (port 3002)"] <-->|REST| agent{"🧠 AI Agent (port 8000)"}
+    agent <-->|Ollama API| ollama[("🤖 Local LLM")]
     
     %% MCP Servers
-    agent <-->|MCP Protocol| mcp_grafana["🛠️ Grafana MCP"]
-    agent <-->|MCP Protocol| mcp_k8s["🛠️ Kubernetes MCP"]
-    agent <-->|MCP Protocol| mcp_github["🛠️ GitHub MCP"]
+    agent <-->|MCP| mcp_grafana["🛠️ Grafana MCP"]
+    agent <-->|MCP| mcp_k8s["🛠️ Kubernetes MCP"]
+    agent <-->|MCP| mcp_github["🛠️ GitHub MCP"]
     
-    %% Tool Interactions
-    mcp_grafana -->|Queries| grafana
-    mcp_k8s -->|Inspects| minikube[(Minikube Cluster)]
-    mcp_github -->|Reads| github[(GitHub Repo)]
-    app --- minikube
+    %% Interactions
+    mcp_grafana -->|PromQL/LogQL| grafana
+    mcp_k8s -->|kubectl| minikube[(Minikube)]
+    mcp_github -->|Git| github[(GitHub)]
 ```
 
-The repository is structured into the following key components:
+### 1. The AI Agent (`agent/`)
+The "Brain" of the operation. built with **FastAPI**, **LangGraph**, and **Ollama**. Unlike standard chatbots, this agent implements an **Autonomous Multi-Turn Reasoning Loop** (up to 100 iterations) that allows it to:
+*   Detect an anomaly via Grafana metrics.
+*   Cross-reference with Loki logs.
+*   Inspect Kubernetes pod state via `kubectl`.
+*   Compare code changes via GitHub history.
+*   Synthesize a root cause analysis independently.
 
-### 1. The Application (`dummy-app/`)
-A simple Node.js application built with Express and TypeScript. It is intentionally designed to simulate various error conditions (e.g., 500 Internal Server Errors, high latency) and is heavily instrumented with **OpenTelemetry** to export metrics and traces.
+### 2. The Agent UI (`agent-ui/`)
+A premium chat interface built with **Next.js** and **Material UI**. It provides a real-time view of the agent's thought process as it executes its autonomous loop.
 
-### 2. The Observability Stack (`lgtm/`)
-A complete dockerized **LGTM Stack** (Loki, Grafana, Tempo, Mimir/Prometheus) combined with an OpenTelemetry Collector. This stack receives telemetry data from the `dummy-app`, stores it, and makes it visualizable and queryable via Grafana.
+### 3. Model Context Protocol Tools (`mcp/`)
+The agent's interface to the infrastructure.
+*   **Grafana MCP:** Queries metrics and logs.
+*   **Kubernetes MCP:** Inspects Pods, logs, and cluster events (standardized to `resourceType` parameters).
+*   **GitHub MCP:** Tracks code regressions.
 
-### 3. Load Generation (`k6/`)
-A **k6 load testing suite** written in TypeScript. It bombards the `dummy-app` with traffic to generate a steady stream of healthy requests and, crucially, errors and slow responses that the observability stack records and the AI agent triages.
-
-### 4. Model Context Protocol Tools (`mcp/`)
-The toolbelt for the AI Agent. This directory contains configurations and Dockerfiles to run three specialized MCP servers:
-*   **Grafana MCP:** Allows the AI to query metrics (Mimir/Prometheus) and logs (Loki) to detect anomalies.
-*   **Kubernetes MCP:** Allows the AI to inspect Pods, check container logs, and view cluster state.
-*   **GitHub MCP:** Allows the AI to inspect commits, PRs, and repository history to find the code changes that caused an issue.
-
-### 5. The AI Agent (`agent/`)
-The "Brain" of the operation. This is a **FastAPI** Python application built with **uv** and **LangGraph/LangChain**. It uses a local **Ollama** LLM (e.g., `qwen3.5:9b`) as its reasoning engine. The agent serves a REST API (`/triage`) and is configured to autonomously connect to the MCP servers, evaluate alerts, and determine the root cause of application failures proactively.
-
-### 6. The User Interface (`agent-ui/`)
-A premium, dark-mode chat interface built with **Next.js**, **React**, and **Material UI**. It connects to the AI Agent's REST API, providing SREs with a natural language interface to query cluster state, view logs, and troubleshoot incidents.
-
-## � Requirements
-
-Before proceeding, ensure you have the following installed on your host machine:
-
-### Infrastructure
-*   **Docker:** Required for building container images.
-*   **Minikube:** The local Kubernetes orchestrator.
-*   **kubectl:** The CLI tool for interacting with the Minikube cluster.
-
-### AI & Agents
-*   **Ollama:** Must be installed and running locally to serve the LLM.
-*   **uv:** Fast Python package manager (required if you wish to run the agent outside of Docker for development).
-
-### Application (Optional for local dev)
-*   **Node.js & npm:** Required to build the `dummy-app` locally before containerization.
+### 4. Instrumented Ecosystem
+*   **`dummy-app/`**: A Node.js app designed to fail in specific patterns (latency, 500s).
+*   **`lgtm/`**: Full observability stack (Loki, Grafana, Tempo, Mimir).
+*   **`k6/`**: Automated load generator to trigger the agent's sensors.
 
 ---
 
 ## 🚀 Getting Started
 
-You can run the entire ecosystem locally using the provided automation scripts.
+### 1. Requirements
+*   **Docker & Minikube**: Core container infrastructure.
+*   **kubectl**: Kubernetes CLI.
+*   **Ollama**: Running locally with enough VRAM (see Troubleshooting).
+*   **uv**: Python package manager.
 
-### 0. Verify Requirements
-
-Run the built-in requirements checker. It will scan your machine and provide exact commands to install any missing tools:
-```bash
-sh check-requirements.sh
-```
-
-### 1. Initial Setup
-
-1.  **Start Ollama:** Run the provided script to start Ollama with the correct host binding (`0.0.0.0`) so the Kubernetes cluster can communicate with it:
+### 2. Setup
+1.  **Configure GitHub**: Add `GITHUB_PERSONAL_ACCESS_TOKEN` to `mcp/.env`.
+2.  **Start Ollama**: Use the host-bound script to allow cluster connectivity:
     ```bash
     ./start-ollama.sh
     ```
-2.  **Configure GitHub Token:**
-    *   Create a file at `mcp/.env`.
-    *   Add your GitHub Personal Access Token:
-        ```bash
-        GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
-        ```
+3.  **Deploy Everything**:
+    ```bash
+    ./run-minikube.sh
+    ```
+    *This script builds all images, sideloads them to Minikube, applies manifests, and starts port-forwarding.*
 
-### 2. Cluster Run (Minikube)
-
-To simulate a true production environment and give the Kubernetes MCP tool a real cluster to analyze, deploy everything to Minikube.
-
-```bash
-# Ensure minikube is started, then run:
-./run-minikube.sh
-```
-*Note: This script will build the images, side-load them into minikube, apply all manifests across the different components, and initiate port-forwarding.*
-
-### 3. Generate Traffic & Errors
-
-Once the cluster is running, you need to simulate user activity (and errors) for the AI to analyze. Open a new terminal window and run:
-```bash
-./run-traffic.sh
-```
-*Note: You can leave this running in the background. It sends a mix of 200 OKs, 500 Errors, and slow responses to the Node.js application.*
+4.  **Simulate Traffic**:
+    ```bash
+    ./gen-traffic.sh
+    ```
 
 ---
 
-## 🚪 Accessing the Services
+## 🚪 Verified Port Mapping
 
-Once the stack is running via Minikube, you can access the essential services at the following local ports:
-
-*   **Agent Chat UI:** `http://localhost:3002` (After running `npm run dev` in `agent-ui/`)
-*   **Agent REST API:** `http://localhost:8000/triage`
-*   **Dummy App API:** `http://localhost:3000`
-*   **Grafana Dashboard:** `http://localhost:3001` (u: `admin`, p: `admin`)
+| Service | Host Port | In-Cluster Port | Description |
+|---------|-----------|-----------------|-------------|
+| **Agent UI** | `3002` | `3002` | The main chat interface. |
+| **Agent API** | `8000` | `8000` | The backend REST API. |
+| **Dummy App** | `3000` | `3000` | The target application. |
+| **Grafana** | `3001` | `3001` | LGTM Dashboards (u/p: admin/admin). |
+| **MCP Servers**| `8080-82` | `8080` | GitHub, K8s, and Grafana tools. |
+| **OTLP** | `4317-18` | `4317-18` | Telemetry ingestion. |
 
 ---
 
-## 🛠️ Tech Stack Highlights
-*   **Agent Backend:** FastAPI, Python 3.12, LangGraph, MCP SDK, `uv` Package Manager, local Ollama LLMs.
-*   **Agent Frontend:** Next.js, React, Material UI, Framer Motion.
-*   **App & Testing:** Node.js, TypeScript, Express, OpenTelemetry JS, Grafana k6.
-*   **Observability:** Grafana, Loki (Logs), Tempo (Traces), Mimir/Prometheus (Metrics).
-*   **Infrastructure:** Kubernetes, Minikube.
+## 🔧 Troubleshooting & Performance
+
+### VRAM & Context Window
+The agent is optimized for models like `qwen3.5:9b-q8_0`. 
+*   **Context Window**: Configured to `16,384` in `llm.py` to handle deep investigation history.
+*   **VRAM Usage**: The autonomous loop stores significant state; Ensure at least ~16GB VRAM (or use a smaller 4-bit quant) for smooth multi-turn reasoning.
+
+### MCP Timeouts
+Complex queries (like searching thousands of logs) may cause timeouts. We have standardized the `agent/mcp_client.py` to use a **5-minute timeout** and **1-hour SSE read timeout** to prevent premature failure.
+
+### Tool Schemas
+When using the Kubernetes tool, ensure the agent uses the `resourceType` parameter (e.g., `resourceType="pods"`) as opposed to plain `resource`, which is the standard required by our MCP implementation.
