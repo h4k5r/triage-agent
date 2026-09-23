@@ -15,17 +15,26 @@ spec:
     spec:
       containers:
       - name: agent
-        image: triage-agent-agent:latest
-        imagePullPolicy: IfNotPresent
+        image: triage-agent-agent:v2
+        imagePullPolicy: Never
         ports:
         - containerPort: 8000
           name: http-api
         env:
         - name: PYTHONUNBUFFERED
           value: "1"
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "/var/secrets/google/application_default_credentials.json"
         envFrom:
         - configMapRef:
             name: triage-agent-config
+        - secretRef:
+            name: gemini-secret
+            optional: true
+        volumeMounts:
+        - name: gcp-adc-volume
+          mountPath: /var/secrets/google
+          readOnly: true
         resources:
           limits:
             memory: "512Mi"
@@ -33,3 +42,8 @@ spec:
           requests:
             memory: "128Mi"
             cpu: "100m"
+      volumes:
+      - name: gcp-adc-volume
+        secret:
+          secretName: gcp-adc
+          optional: true

@@ -11,8 +11,10 @@ async def main():
 
     print("\n[DEBUG] Environment Variables:")
     for key, value in os.environ.items():
-        if any(x in key for x in ["MCP", "GRAFANA", "KUBERNETES", "OLLAMA"]):
-            print(f"  {key}={value}")
+        if any(x in key for x in ["MCP", "GRAFANA", "KUBERNETES", "OLLAMA", "VERTEX", "GOOGLE", "LLM"]):
+            # Mask credentials if present
+            display_val = "***" if "KEY" in key or "SECRET" in key or "CREDENTIALS" in key else value
+            print(f"  {key}={display_val}")
 
     print("\n[+] Starting FastAPI server on port 8000...")
     config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")

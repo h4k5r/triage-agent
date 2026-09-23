@@ -29,6 +29,10 @@ echo "[3/6] Deploying MCP Tool Servers..."
 # Ensure secrets are loaded if exists
 if [ -f "mcp/load-secrets.sh" ] && [ -f "mcp/.env" ]; then
     ./mcp/load-secrets.sh
+elif ! kubectl get secret mcp-github-env >/dev/null 2>&1; then
+    echo "Notice: mcp/.env not found. Creating placeholder secret for mcp-github-env..."
+    echo "(See SECRETS.md to configure a real GitHub Personal Access Token)"
+    kubectl create secret generic mcp-github-env --from-literal=GITHUB_PERSONAL_ACCESS_TOKEN="placeholder"
 fi
 kubectl apply -f mcp/kubernetes/
 

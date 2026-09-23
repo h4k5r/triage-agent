@@ -16,7 +16,7 @@ spec:
       - name: mcp-server
         image: mcp-grafana:latest
         imagePullPolicy: Never
-        args: ["-transport", "sse", "-address", "0.0.0.0:8080"]
+        args: ["-transport", "sse", "-address", "0.0.0.0:8080", "-allowed-hosts", "*", "-allowed-origins", "*", "-enabled-tools", "prometheus,loki,datasource"]
         env:
         - name: GRAFANA_URL
           value: "http://admin:admin@lgtm:3001"

@@ -22,7 +22,7 @@ graph TD
     
     %% AI Agent & UI
     ui["💻 Agent UI (port 3002)"] <-->|REST| agent{"🧠 AI Agent (port 8000)"}
-    agent <-->|Ollama API| ollama[("🤖 Local LLM")]
+    agent <-->|Vertex AI / Ollama| llm[("🤖 Google Vertex AI / Local LLM")]
     
     %% MCP Servers
     agent <-->|MCP| mcp_grafana["🛠️ Grafana MCP"]
@@ -36,7 +36,7 @@ graph TD
 ```
 
 ### 1. The AI Agent (`agent/`)
-The "Brain" of the operation. built with **FastAPI**, **LangGraph**, and **Ollama**. Unlike standard chatbots, this agent implements an **Autonomous Multi-Turn Reasoning Loop** (up to 100 iterations) that allows it to:
+The "Brain" of the operation. Built with **FastAPI**, **LangGraph**, and **Google Cloud Vertex AI** (with optional local **Ollama** fallback). Unlike standard chatbots, this agent implements an **Autonomous Multi-Turn Reasoning Loop** (up to 100 iterations) that allows it to:
 *   Detect an anomaly via Grafana metrics.
 *   Cross-reference with Loki logs.
 *   Inspect Kubernetes pod state via `kubectl`.
@@ -68,7 +68,12 @@ The agent's interface to the infrastructure.
 *   **uv**: Python package manager.
 
 ### 2. Setup
-1.  **Configure GitHub**: Add `GITHUB_PERSONAL_ACCESS_TOKEN` to `mcp/.env`.
+1.  **Configure Secrets**: See [SECRETS.md](file:///home/worldender/repos/gcloud-hackathon/triage-agent/SECRETS.md) for full instructions and placeholders.
+    ```bash
+    cp mcp/.env.example mcp/.env
+    # Add your GitHub token or leave placeholder, then load:
+    ./mcp/load-secrets.sh
+    ```
 2.  **Start Ollama**: Use the host-bound script to allow cluster connectivity:
     ```bash
     ./start-ollama.sh

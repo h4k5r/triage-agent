@@ -95,83 +95,42 @@ async def triage_endpoint(request: TriageRequest):
         raise HTTPException(status_code=503, detail="Agent not initialized")
     
     try:
-        MAX_ITERATIONS = 100
-        # Seed the conversation with the user's query
+        print(f"\n[+] Processing triage request: {request.query}")
         messages = [("user", request.query)]
+
+        # LangGraph ReAct agent autonomously executes the tool reasoning loop
+        result = await agent_executor.ainvoke({"messages": messages})
+
+        all_msgs = result.get("messages", [])
+
+        # Find the last AIMessage with actual text content
         last_ai_text = ""
+        for msg in reversed(all_msgs):
+            if isinstance(msg, AIMessage):
+                text = _extract_text(msg.content)
+                if text:
+                    last_ai_text = text
+                    break
 
-        for iteration in range(MAX_ITERATIONS):
-            print(f"  [LOOP] Iteration {iteration + 1}/{MAX_ITERATIONS}")
-            result = await agent_executor.ainvoke({"messages": messages})
-
-            all_msgs = result.get("messages", [])
-            for i, m in enumerate(all_msgs):
-                print(f"    [DEBUG] msg[{i}] type={type(m).__name__} content_len={len(str(m.content))}")
-
-            # Find the last AIMessage with actual text content in this iteration
-            iter_ai_text = ""
-            for msg in reversed(all_msgs):
-                if isinstance(msg, AIMessage):
-                    text = _extract_text(msg.content)
-                    if text:
-                        iter_ai_text = text
-                        break
-
-            # Check if the agent called any new tools in this iteration vs previous
-            prev_len = len(messages) if isinstance(messages[0], tuple) else len(messages)
-            new_tool_calls = sum(
-                1 for m in all_msgs[prev_len:]
-                if not isinstance(m, AIMessage)
-            )
-            print(f"    [LOOP] new_tool_calls={new_tool_calls} iter_ai_text_len={len(iter_ai_text)}")
-
-            # Log intermediate output before next pass
-            new_msgs = all_msgs[prev_len:]
-            tool_names = [
-                m.name for m in new_msgs
-                if not isinstance(m, AIMessage) and hasattr(m, "name")
-            ]
-            if tool_names:
-                print(f"    [LOOP] Tools called this pass: {tool_names}")
-            if iter_ai_text:
-                preview = iter_ai_text[:300].replace("\n", " ")
-                print(f"    [LOOP] AI output this pass: {preview}{'...' if len(iter_ai_text) > 300 else ''}")
-            else:
-                print(f"    [LOOP] AI output this pass: (none)")
-
-            # Accumulate: use the full message list for the next iteration
-            # Add a continuation prompt so the model knows to keep investigating
-            messages = all_msgs
-            if iter_ai_text:
-                last_ai_text = iter_ai_text
-
-            # If the agent produced text AND made no new tool calls, it's done
-            if iter_ai_text and new_tool_calls == 0:
-                print(f"  [LOOP] Agent finished at iteration {iteration + 1}")
-                break
-
-            # If no new tool calls were made at all, push the agent to continue
-            if new_tool_calls == 0 and iteration < MAX_ITERATIONS - 1:
-                messages = list(all_msgs) + [
-                    ("user", (
-                        "Continue the investigation. You have not yet completed all required steps. "
-                        "If you have Kubernetes data, now use Prometheus/Grafana tools: "
-                        "try list_prometheus_metric_names or query_prometheus to get memory usage, "
-                        "or list_datasources to find the correct datasource ID. "
-                        "Do NOT stop until you have checked all requested data sources."
-                    ))
-                ]
-
-        # If still no text response after all iterations, force a summarization
+        # If model ended without a text summary, invoke LLM once to summarize findings
         if not last_ai_text:
-            print("  [LOOP] All iterations exhausted with no AI text — forcing summarization")
-            summary_msgs = list(result["messages"]) + [
-                ("user", "Based on all the tool results above, provide a complete and concise summary of your findings.")
-            ]
+            print("  [+] Generating final summary from tool outputs...")
+            from langchain_core.messages import ToolMessage
+            tool_outputs = []
+            for msg in all_msgs:
+                if isinstance(msg, ToolMessage):
+                    tool_name = getattr(msg, "name", "tool")
+                    tool_outputs.append(f"[{tool_name}]: {msg.content}")
+            
+            context = "\n\n".join(tool_outputs) if tool_outputs else "No diagnostic tool outputs recorded."
             llm = get_llm()
-            summary = await llm.ainvoke(summary_msgs)
+            summary_prompt = [
+                ("user", f"Diagnostic investigation context:\n{context}\n\nUser Question: {request.query}\n\nPlease summarize the findings, status of the system, and any identified root causes.")
+            ]
+            summary = await llm.ainvoke(summary_prompt)
             last_ai_text = _extract_text(summary.content)
 
+        print(f"[+] Agent finished: {last_ai_text[:150]}...")
         if last_ai_text:
             return TriageResponse(response=last_ai_text)
         else:

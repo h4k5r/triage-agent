@@ -1,4 +1,4 @@
-from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt import create_react_agent, ToolNode
 
 SRE_SYSTEM_PROMPT = """You are a diagnostic tool-use agent.
 Your ONLY goal is to provide data from logs, metrics, and cluster state to the user.
@@ -83,10 +83,11 @@ def create_triage_agent(llm, tools=None):
     if tools is None:
         tools = []
         
+    tool_node = ToolNode(tools, handle_tool_errors=True)
     # Initialize the agent loop with LangGraph
     agent_executor = create_react_agent(
         model=llm,
-        tools=tools,
+        tools=tool_node,
         prompt=SRE_SYSTEM_PROMPT
     )
     

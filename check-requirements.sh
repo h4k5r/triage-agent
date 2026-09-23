@@ -39,8 +39,19 @@ check_command "docker" "Docker" "Instructions: https://docs.docker.com/engine/in
 check_command "minikube" "Minikube" "curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && sudo install minikube-linux-amd64 /usr/local/bin/minikube"
 check_command "kubectl" "kubectl" "curl -LO \"https://dl.k8s.io/release/\$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl\" && sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl"
 
+# Ensure user local bin is in PATH (common for uv installation)
+export PATH="$HOME/.local/bin:$PATH"
+
 echo "--- AI & Agents ---"
-check_command "ollama" "Ollama" "curl -fsSL https://ollama.com/install.sh | sh"
+if command -v "ollama" >/dev/null 2>&1; then
+    printf "[${GREEN}✓${NC}] Ollama is installed (Local LLM).\n"
+elif [ "$LLM_PROVIDER" = "vertexai" ] || [ -n "$GOOGLE_CLOUD_PROJECT" ] || command -v "gcloud" >/dev/null 2>&1; then
+    printf "[${GREEN}✓${NC}] Google Cloud Vertex AI / gcloud detected (Ollama not required).\n"
+else
+    printf "[${YELLOW}?${NC}] Ollama is NOT installed (Optional if using Google Cloud Vertex AI).\n"
+    printf "${YELLOW}---> To use Vertex AI:${NC} Set LLM_PROVIDER=vertexai and GOOGLE_CLOUD_PROJECT\n"
+    printf "${YELLOW}---> To install Ollama (Local):${NC} curl -fsSL https://ollama.com/install.sh | sh\n\n"
+fi
 check_command "uv" "uv (Python Package Manager)" "curl -LsSf https://astral.sh/uv/install.sh | sh"
 
 echo "--- Application (Node.js) ---"

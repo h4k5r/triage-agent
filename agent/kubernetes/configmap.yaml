@@ -5,7 +5,15 @@ metadata:
   namespace: default
 data:
   GRAFANA_URL: "http://lgtm:3001"
-  OLLAMA_HOST: "172.20.10.4" # Primary host IP verified for Ollama connectivity
+  # LLM Provider: 'genai', 'vertexai', or 'ollama'
+  LLM_PROVIDER: "genai"
+  GEMINI_MODEL: "gemini-3.8-flash"
+  VERTEX_MODEL: "gemini-1.5-pro"
+  GOOGLE_CLOUD_LOCATION: "us-central1"
+  # Set GOOGLE_CLOUD_PROJECT to your GCP project ID
+  GOOGLE_CLOUD_PROJECT: "ral-harwell26lon-205"
+  # Ollama fallback settings
+  OLLAMA_HOST: "172.20.10.4"
   OLLAMA_MODEL: "qwen3.5:9b-q8_0"
   # URLs for MCP servers in-cluster
   GITHUB_MCP_URL: "http://mcp-github:8080/sse"
