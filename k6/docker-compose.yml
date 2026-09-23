@@ -5,5 +5,7 @@ services:
     volumes:
       - ./dist:/scripts
     environment:
-      - API_URL=${API_URL:-http://localhost:3000}
+      - API_URL=${API_URL:-http://host.docker.internal:3000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: run /scripts/script.js

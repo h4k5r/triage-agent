@@ -13,14 +13,14 @@ if ! minikube status > /dev/null 2>&1; then
     exit 1
 fi
 
-echo "[1/4] Building local Node App image..."
-docker build -t triage-agent-app:latest ./dummy-app
+echo "[1/5] Building local Node App image..."
+docker build -t triage-agent-app:latest -t triage-agent-app:v2 ./dummy-app
 
-echo "[2/4] Building local LGTM stack image..."
+echo "[2/5] Building local LGTM stack image..."
 docker build -t triage-agent-lgtm:latest ./lgtm
 
 echo "[3/5] Building local AI Agent image..."
-docker build -t triage-agent-agent:latest ./agent
+docker build -t triage-agent-agent:v2 -t triage-agent-agent:latest ./agent
 
 echo "[4/5] Building local Agent UI image..."
 docker build -t triage-agent-ui:latest ./agent-ui
@@ -30,11 +30,12 @@ docker build -t mcp-github:latest -f mcp/github.Dockerfile mcp/
 docker build -t mcp-kubernetes:latest -f mcp/kubernetes.Dockerfile mcp/
 docker build -t mcp-grafana:latest -f mcp/grafana.Dockerfile mcp/
 
-echo "[4/4] Sideloading images directly into Minikube cluster..."
+echo "Sideloading images directly into Minikube cluster..."
 # Using minikube image load is often faster/more reliable than eval $(minikube docker-env)
 minikube image load triage-agent-app:latest
+minikube image load triage-agent-app:v2
 minikube image load triage-agent-lgtm:latest
-minikube image load triage-agent-agent:latest
+minikube image load triage-agent-agent:v2
 minikube image load triage-agent-ui:latest
 minikube image load mcp-github:latest
 minikube image load mcp-kubernetes:latest
@@ -47,5 +48,6 @@ echo " You can now apply your manifests:"
 echo "   kubectl apply -f dummy-app/kubernetes/"
 echo "   kubectl apply -f lgtm/kubernetes/"
 echo "   kubectl apply -f agent/kubernetes/"
+echo "   kubectl apply -f agent-ui/kubernetes/"
 echo "   kubectl apply -f mcp/kubernetes/"
 echo "=========================================================="
