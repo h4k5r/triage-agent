@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
       - name: ui
-        image: triage-agent-ui:latest
-        imagePullPolicy: IfNotPresent
+        image: triage-agent-ui:v3
+        imagePullPolicy: Never
         ports:
         - containerPort: 3002
           name: http

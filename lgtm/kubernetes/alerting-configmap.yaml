@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lgtm-alerting-config
+  labels:
+    app: lgtm
+data:
+  alerting.yaml: |
+    apiVersion: 1
+
+    contactPoints:
+      - orgId: 1
+        name: triage-agent-webhook
+        receivers:
+          - uid: triage-webhook-receiver
+            type: webhook
+            disableResolveMessage: false
+            settings:
+              url: http://triage-agent-api:8000/alerts
+              httpMethod: POST
+
+    policies:
+      - orgId: 1
+        receiver: triage-agent-webhook
+        group_by:
+          - alertname
+          - service
+        group_wait: 10s
+        group_interval: 1m
+        repeat_interval: 5m
+
+    deleteRules:
+      - orgId: 1
+        uid: high-http-error-rate
+
+    groups:
+      - orgId: 1
+        name: application-alerts
+        folder: Application Alerts
+        interval: 1m
+        rules:
+          - uid: high-server-error-rate
+            title: HighServerErrorRate
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: prometheus
+                model:
+                  editorMode: code
+                  expr: sum by (service_name) (increase(http_server_requests_total{status_code=~"5.."}[5m]))
+                  instant: true
+                  range: false
+                  refId: A
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                          - B
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    name: Expression
+                    type: __expr__
+                    uid: __expr__
+                  expression: A
+                  reducer: last
+                  refId: B
+                  type: reduce
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params:
+                          - 50
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                          - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    name: Expression
+                    type: __expr__
+                    uid: __expr__
+                  expression: $B > 50
+                  refId: C
+                  type: math
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: critical
+              service: node-typescript-app
+            annotations:
+              summary: "High 5xx server error rate on {{ $labels.service }}"
+              description: "Service {{ $labels.service }} encountered >50 HTTP 5xx errors in the last 5 minutes."
+
+          - uid: high-client-error-rate
+            title: HighClientErrorRate
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: prometheus
+                model:
+                  editorMode: code
+                  expr: sum by (service_name) (increase(http_server_requests_total{status_code=~"4.."}[5m]))
+                  instant: true
+                  range: false
+                  refId: A
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                          - B
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    name: Expression
+                    type: __expr__
+                    uid: __expr__
+                  expression: A
+                  reducer: last
+                  refId: B
+                  type: reduce
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params:
+                          - 50
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                          - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    name: Expression
+                    type: __expr__
+                    uid: __expr__
+                  expression: $B > 50
+                  refId: C
+                  type: math
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: warning
+              service: node-typescript-app
+            annotations:
+              summary: "High 4xx client error rate on {{ $labels.service }}"
+              description: "Service {{ $labels.service }} encountered >50 HTTP 4xx client errors in the last 5 minutes."

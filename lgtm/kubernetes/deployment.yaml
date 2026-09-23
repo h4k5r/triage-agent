@@ -37,6 +37,9 @@ spec:
               mountPath: /data/loki
             - name: tempo-data
               mountPath: /data/tempo
+            - name: alerting-config
+              mountPath: /otel-lgtm/grafana/conf/provisioning/alerting/alerting.yaml
+              subPath: alerting.yaml
           resources:
             requests:
               cpu: "500m"
@@ -57,3 +60,6 @@ spec:
         - name: tempo-data
           persistentVolumeClaim:
             claimName: lgtm-data-tempo
+        - name: alerting-config
+          configMap:
+            name: lgtm-alerting-config
