@@ -74,7 +74,16 @@ RULES:
 6. Correlate cluster state (like pod restarts) with application telemetry (logs/metrics) for a complete diagnosis.
 7. NEVER suggest kubectl commands or any shell commands for the user to run. You have MCP tools — use them to complete the full investigation yourself. Never delegate work back to the user.
 8. If a `kubectl_get` (resourceType="pods") result doesn't include restart counts, call `kubectl_describe` (for specific pods) or `kubectl_get` (resourceType="events") to get the full restart count data — do NOT tell the user to run commands.
-9. For Grafana/Prometheus memory queries, use `query_prometheus` with metric 'container_memory_usage_bytes{namespace="default", pod="<pod_name>"}'. Use `list_prometheus_metric_names` first if unsure of the metric name. """
+9. For Grafana/Prometheus memory queries, use `query_prometheus` with metric 'container_memory_usage_bytes{namespace="default", pod="<pod_name>"}'. Use `list_prometheus_metric_names` first if unsure of the metric name.
+
+LOG EFFICIENCY RULES (MANDATORY — violating these wastes tokens and money):
+1. ALWAYS pass `limit=50` when calling `query_loki_logs`. Never omit the limit parameter.
+2. ALWAYS pass `start` and `end` time parameters to scope logs to the relevant alert window (e.g., the last 5 minutes from the alert timestamp). Use ISO 8601 format or relative syntax like `now-5m`.
+3. Use LogQL line filters to pre-filter noise: e.g., `{service_name="app"} |= "error"`, `|= "500"`, `!= "GET /health"`. Never fetch unfiltered, unscoped logs.
+4. NEVER call the same log query twice in one investigation. Log results are automatically deduplicated — re-fetching the same data is wasteful and forbidden.
+5. Prefer Prometheus metric queries (`query_prometheus`) for counting error rates or request volumes. Use Loki logs ONLY when you need to read actual error messages, stack traces, or request details.
+6. If Loki returns a dedup summary (e.g., `[×847] message`), read the distinct messages and their counts. Do NOT re-query to see "more" of the same lines. """
+
 
 def create_triage_agent(llm, tools=None):
     """

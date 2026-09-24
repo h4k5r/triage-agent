@@ -7,6 +7,7 @@ from mcp.client.sse import sse_client
 from langchain_mcp_adapters.tools import load_mcp_tools
 
 from contextlib import AsyncExitStack
+from log_dedup import wrap_loki_tools
 
 async def get_mcp_tools(stack: AsyncExitStack) -> List[BaseTool]:
     """
@@ -58,4 +59,8 @@ async def get_mcp_tools(stack: AsyncExitStack) -> List[BaseTool]:
         except Exception as e:
             print(f"[!] Failed to connect or load tools from {url}: {e}")
             
+    # Wrap Loki log tools with deduplication to reduce token consumption
+    print(f"[+] All loaded tool names: {[t.name for t in tools]}")
+    tools = wrap_loki_tools(tools)
+
     return tools

@@ -20,7 +20,7 @@ echo "[2/5] Building local LGTM stack image..."
 docker build -t triage-agent-lgtm:latest ./lgtm
 
 echo "[3/5] Building local AI Agent image..."
-docker build -t triage-agent-agent:v8 -t triage-agent-agent:latest ./agent
+docker build -t triage-agent-agent:v10 -t triage-agent-agent:latest ./agent
 
 echo "[4/5] Building local Agent UI image..."
 docker build -t triage-agent-ui:v3 -t triage-agent-ui:latest ./agent-ui
@@ -35,7 +35,7 @@ echo "Sideloading images directly into Minikube cluster..."
 minikube image load triage-agent-app:latest
 minikube image load triage-agent-app:v2
 minikube image load triage-agent-lgtm:latest
-minikube image load triage-agent-agent:v8
+minikube image load triage-agent-agent:v10
 minikube image load triage-agent-agent:latest
 minikube image load triage-agent-ui:v3
 minikube image load triage-agent-ui:latest
