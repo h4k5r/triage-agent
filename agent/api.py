@@ -4,6 +4,8 @@ from typing import List, Optional, Dict, Any
 import asyncio
 import time
 import uuid
+import os
+import json
 from contextlib import asynccontextmanager, AsyncExitStack
 from langchain_core.messages import AIMessage
 from llm import get_llm
@@ -56,11 +58,34 @@ mcp_tools = None
 incidents: Dict[str, IncidentRecord] = {}
 recent_alerts: Dict[str, float] = {}
 
+INCIDENTS_STORE_PATH = "/tmp/incidents_store.json"
+
+def _save_incidents():
+    try:
+        data = {k: v.dict() for k, v in incidents.items()}
+        with open(INCIDENTS_STORE_PATH, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"[!] Error saving incidents: {e}")
+
+def _load_incidents():
+    global incidents
+    if os.path.exists(INCIDENTS_STORE_PATH):
+        try:
+            with open(INCIDENTS_STORE_PATH, "r") as f:
+                data = json.load(f)
+                for k, v in data.items():
+                    incidents[k] = IncidentRecord(**v)
+            print(f"[+] Loaded {len(incidents)} incidents from store.")
+        except Exception as e:
+            print(f"[!] Error loading incidents: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global agent_executor, mcp_tools
     
     print("\n[+] Lifespan startup: Initializing agent and tools...")
+    _load_incidents()
     async with AsyncExitStack() as stack:
         # Load the LangChain MCP bindings
         print("[+] Gathering MCP Tools...")
@@ -223,6 +248,7 @@ async def _run_alert_triage(incident_id: str, query: str):
         record.status = "COMPLETED"
         record.response = last_ai_text or "Agent produced no response."
         record.updated_at = time.time()
+        _save_incidents()
         print(f"[+] [Incident {incident_id}] Triage completed successfully.")
 
     except Exception as e:
@@ -231,6 +257,7 @@ async def _run_alert_triage(incident_id: str, query: str):
         record.status = "FAILED"
         record.error = str(e)
         record.updated_at = time.time()
+        _save_incidents()
         print(f"[!] [Incident {incident_id}] Triage failed: {e}")
 
 
@@ -243,9 +270,7 @@ async def grafana_alert_webhook(payload: GrafanaWebhookPayload):
         for a in payload.alerts:
             alertname = a.labels.get("alertname", "UnknownAlert")
             service = a.labels.get("service") or a.labels.get("service_name") or a.labels.get("job") or "unknown"
-            cooldown_key = f"{alertname}-{service}"
-            recent_alerts.pop(cooldown_key, None)
-            print(f"[*] Cleared cooldown for resolved alert: {cooldown_key}")
+            print(f"[*] Alert resolved: {alertname}-{service}")
         return {"status": "acknowledged", "message": "Alert resolution acknowledged."}
 
     dispatched = []
@@ -282,13 +307,38 @@ async def grafana_alert_webhook(payload: GrafanaWebhookPayload):
         )
         starts_at = alert.startsAt or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
 
-        cooldown_key = f"{alertname}-{service}"
-        if cooldown_key in recent_alerts and (now - recent_alerts[cooldown_key]) < 600:
-            print(f"[*] Skipping duplicate alert for '{cooldown_key}' (cooldown active: {int(now - recent_alerts[cooldown_key])}s / 600s)")
+        # Only ignore rapid network duplicates within 2s for the exact same starts_at timestamp
+        dedup_key = f"{alert.fingerprint or ''}-{alertname}-{service}-{starts_at}"
+        if dedup_key in recent_alerts and (now - recent_alerts[dedup_key]) < 2:
+            print(f"[*] Skipping exact network retransmission for '{dedup_key}' within 2s")
             continue
+        recent_alerts[dedup_key] = now
 
-        recent_alerts[cooldown_key] = now
         incident_id = f"inc-{uuid.uuid4().hex[:8]}"
+
+        # Determine alert focus scope (5xx server errors vs 4xx client errors)
+        alert_text = f"{alertname} {summary} {description}".lower()
+        if "server" in alert_text or "5xx" in alert_text:
+            target_metric_filter = '{status_code=~"5.."}'
+            scope_desc = "HTTP 5xx server errors (e.g., status 500, 502)"
+            scope_constraint = (
+                "IMPORTANT: Focus exclusively on HTTP 5xx server errors and the specific failing routes causing them. "
+                "Do NOT list, table, or enumerate successful 2xx requests or 4xx client errors in the metrics breakdown or report."
+            )
+        elif "client" in alert_text or "4xx" in alert_text:
+            target_metric_filter = '{status_code=~"4.."}'
+            scope_desc = "HTTP 4xx client errors (e.g., status 400, 401, 404)"
+            scope_constraint = (
+                "IMPORTANT: Focus exclusively on HTTP 4xx client errors and the specific routes causing them. "
+                "Do NOT list, table, or enumerate successful 2xx requests or 5xx server errors in the metrics breakdown or report."
+            )
+        else:
+            target_metric_filter = '{status_code!~"2.."}'
+            scope_desc = "failing non-2xx error responses"
+            scope_constraint = (
+                "IMPORTANT: Focus strictly on the failing routes and error status codes relevant to this alert. "
+                "Do NOT list or enumerate successful 2xx requests in the report."
+            )
 
         query = (
             f"GRAFANA ALERT TRIGGERED: '{alertname}' for service '{service}'.\n"
@@ -297,10 +347,13 @@ async def grafana_alert_webhook(payload: GrafanaWebhookPayload):
             f"Summary: {summary}\n"
             f"Description: {description}\n\n"
             f"INVESTIGATION INSTRUCTIONS:\n"
-            f"1. Query Loki logs and Prometheus metrics for service '{service}' around {starts_at} to inspect the recent errors, non-2xx status codes (such as 4xx client errors or 5xx server errors), failing endpoints/routes, and log messages/stack traces.\n"
+            f"1. Query Prometheus metrics specifically filtered for {target_metric_filter} (e.g., `increase(http_server_requests_total{target_metric_filter}[5m])` or `http_server_requests_total{target_metric_filter}`) and Loki logs for service '{service}' around {starts_at} to inspect the {scope_desc}.\n"
+            f"   {scope_constraint}\n"
+            f"   NOTE: Focus on the specific error spike for THIS alert window (over the last 5 minutes). Clearly distinguish the new error burst from cumulative historical totals.\n"
             f"2. Inspect Kubernetes pods and events for service '{service}' (e.g. check restarts, crash loops, or resource saturation).\n"
-            f"3. Retrieve the source code repository from the deployment/pod annotations (`github.com/repository`), locate the failing endpoint in the code, and diagnose what is causing the error.\n"
-            f"4. Provide a clear summary: Root Cause, Affected Endpoints/Pods, and Recommended Fix."
+            f"3. Retrieve the source code repository from the deployment/pod annotations (`github.com/repository`) and subpath (`github.com/path`). For compiled TypeScript/Node apps where logs cite `dist/*.js` (e.g. `dist/app.js`), inspect the corresponding TypeScript source file in `src/*.ts` (e.g. `dummy-app/src/app.ts`) using GitHub MCP tools (`get_file_contents`), cite the actual TypeScript code snippet in your report, and diagnose what is causing the error.\n"
+            f"4. Provide a clear summary: Root Cause, Affected Endpoints/Pods, Source Code Analysis (citing the TypeScript file path and relevant lines of code from GitHub), and Recommended Fix.\n"
+            f"   Ensure your final report contains ONLY information relevant to {scope_desc}; do not include unrelated healthy endpoints or other status code categories."
         )
 
         record = IncidentRecord(
@@ -316,6 +369,7 @@ async def grafana_alert_webhook(payload: GrafanaWebhookPayload):
             query=query
         )
         incidents[incident_id] = record
+        _save_incidents()
         dispatched.append(incident_id)
 
         # Launch background investigation task

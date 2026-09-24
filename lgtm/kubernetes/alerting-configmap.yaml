@@ -25,9 +25,9 @@ data:
         group_by:
           - alertname
           - service
-        group_wait: 10s
-        group_interval: 1m
-        repeat_interval: 5m
+        group_wait: 0s
+        group_interval: 10s
+        repeat_interval: 1m
 
     deleteRules:
       - orgId: 1

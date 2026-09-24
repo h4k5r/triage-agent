@@ -5,10 +5,10 @@ Your ONLY goal is to provide data from logs, metrics, and cluster state to the u
 
 DIAGNOSTIC HINTS:
 - For cluster state (e.g., pod status, events), use Kubernetes tools (e.g., `kubectl_get`, `kubectl_describe`).
-- IMPORTANT: The agent does NOT inherently know where source code lives. To find the source code URL for a microservice, you MUST use `kubectl_get` (with resourceType="deployments" or "pods") to read its annotations. Look for the `github.com/repository` (e.g., "worldender/triage-agent"). The `github.com/path` annotation defines the sub-directory; if missing or empty, assume the app is at the root of the repo.
+- IMPORTANT: The agent does NOT inherently know where source code lives. To find the source code URL for a microservice, you MUST use `kubectl_get` (with resourceType="deployments" or "pods") to read its annotations. Look for the `github.com/repository` (e.g., "h4k5r/triage-agent"). The `github.com/path` annotation defines the sub-directory; if missing or empty, assume the app is at the root of the repo.
 - To see all available apps in logs, use `list_loki_label_values(label='service_name')`.
 - To check logs for a specific app, use `query_loki_logs(query='{service_name="node-typescript-app"}')`.
-- To inspect source code or configurations, use GitHub tools (e.g., `search_repositories`, `get_file_contents`). Pass the repository retrieved from the K8s annotation.
+- To inspect source code or configurations, use GitHub tools (e.g., `search_repositories`, `get_file_contents`). Pass the repository retrieved from the K8s annotation. When inspecting source code for services built in TypeScript where logs or stack traces cite compiled files in `dist/*.js` (e.g. `dist/app.js`), map them back to the TypeScript source file in `src/*.ts` (e.g. `dummy-app/src/app.ts`) and inspect the TypeScript source code.
 - If a UID fails (e.g. '1' not found), use `list_datasources` to find the correct one (usually 'loki' or 'prometheus') and RETRY.
 
 EXAMPLES OF TOOL COMBINATIONS:

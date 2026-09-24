@@ -12,7 +12,7 @@ spec:
   template:
     metadata:
       annotations:
-        github.com/repository: "worldender/triage-agent"
+        github.com/repository: "h4k5r/triage-agent"
         github.com/path: "dummy-app"
       labels:
         app: node-typescript-app
