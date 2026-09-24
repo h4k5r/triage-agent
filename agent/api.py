@@ -7,9 +7,8 @@ import uuid
 import os
 import json
 from contextlib import asynccontextmanager, AsyncExitStack
-from langchain_core.messages import AIMessage
 from llm import get_llm
-from agent import create_triage_agent
+from agent import NativeTriageAgent
 from mcp_client import get_mcp_tools
 
 class TriageRequest(BaseModel):
@@ -87,7 +86,6 @@ async def lifespan(app: FastAPI):
     print("\n[+] Lifespan startup: Initializing agent and tools...")
     _load_incidents()
     async with AsyncExitStack() as stack:
-        # Load the LangChain MCP bindings
         print("[+] Gathering MCP Tools...")
         try:
             tools = await asyncio.wait_for(get_mcp_tools(stack), timeout=60.0)
@@ -95,14 +93,11 @@ async def lifespan(app: FastAPI):
             print(f"[!] Error loading tools: {e}")
             tools = []
         
-        # Connect to Ollama
-        llm = get_llm()
+        client, model_name = get_llm()
         
-        # Initialize the LangGraph ReAct Agent
         print("[+] Building Agent Executor...")
-        triage_agent = create_triage_agent(llm, tools=tools)
+        triage_agent = NativeTriageAgent(client, model_name, tools)
         
-        # Set global state
         agent_executor = triage_agent
         mcp_tools = tools
         
@@ -115,7 +110,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="AI Triage Agent API", lifespan=lifespan)
 
-# Allow all origins for the browser UI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -124,31 +118,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def set_agent(executor, tools):
-    """Fallback for interactive mode or testing"""
-    global agent_executor, mcp_tools
-    agent_executor = executor
-    mcp_tools = tools
-
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "agent_initialized": agent_executor is not None}
-
-def _extract_text(content) -> str:
-    """Extract plain text from a message content that may be str or list of blocks."""
-    if isinstance(content, str):
-        return content.strip()
-    if isinstance(content, list):
-        parts = []
-        for block in content:
-            if isinstance(block, str):
-                parts.append(block)
-            elif isinstance(block, dict) and block.get("type") == "text":
-                parts.append(block.get("text", ""))
-            elif hasattr(block, "text"):
-                parts.append(block.text)
-        return "\n".join(p for p in parts if p).strip()
-    return str(content).strip()
 
 
 @app.post("/triage", response_model=TriageResponse)
@@ -158,43 +130,11 @@ async def triage_endpoint(request: TriageRequest):
     
     try:
         print(f"\n[+] Processing triage request: {request.query}")
-        messages = [("user", request.query)]
+        result = await agent_executor.ainvoke(request.query)
 
-        # LangGraph ReAct agent autonomously executes the tool reasoning loop
-        result = await agent_executor.ainvoke({"messages": messages})
-
-        all_msgs = result.get("messages", [])
-
-        # Find the last AIMessage with actual text content
-        last_ai_text = ""
-        for msg in reversed(all_msgs):
-            if isinstance(msg, AIMessage):
-                text = _extract_text(msg.content)
-                if text:
-                    last_ai_text = text
-                    break
-
-        # If model ended without a text summary, invoke LLM once to summarize findings
-        if not last_ai_text:
-            print("  [+] Generating final summary from tool outputs...")
-            from langchain_core.messages import ToolMessage
-            tool_outputs = []
-            for msg in all_msgs:
-                if isinstance(msg, ToolMessage):
-                    tool_name = getattr(msg, "name", "tool")
-                    tool_outputs.append(f"[{tool_name}]: {msg.content}")
-            
-            context = "\n\n".join(tool_outputs) if tool_outputs else "No diagnostic tool outputs recorded."
-            llm = get_llm()
-            summary_prompt = [
-                ("user", f"Diagnostic investigation context:\n{context}\n\nUser Question: {request.query}\n\nPlease summarize the findings, status of the system, and any identified root causes.")
-            ]
-            summary = await llm.ainvoke(summary_prompt)
-            last_ai_text = _extract_text(summary.content)
-
-        print(f"[+] Agent finished: {last_ai_text[:150]}...")
-        if last_ai_text:
-            return TriageResponse(response=last_ai_text)
+        print(f"[+] Agent finished: {result[:150]}...")
+        if result:
+            return TriageResponse(response=result)
         else:
             return TriageResponse(response="Agent produced no response", status="error")
 
@@ -205,48 +145,20 @@ async def triage_endpoint(request: TriageRequest):
 
 
 async def _run_alert_triage(incident_id: str, query: str):
-    """Background task to run LangGraph triage agent autonomously."""
     record = incidents.get(incident_id)
     if not record:
         return
 
     try:
         print(f"\n[+] [Incident {incident_id}] Starting background triage run...")
-        messages = [("user", query)]
 
         if agent_executor is None:
             raise RuntimeError("Agent executor is not initialized")
 
-        result = await agent_executor.ainvoke({"messages": messages})
-        all_msgs = result.get("messages", [])
-
-        last_ai_text = ""
-        for msg in reversed(all_msgs):
-            if isinstance(msg, AIMessage):
-                text = _extract_text(msg.content)
-                if text:
-                    last_ai_text = text
-                    break
-
-        if not last_ai_text:
-            print(f"  [+] [Incident {incident_id}] Generating summary from tool outputs...")
-            from langchain_core.messages import ToolMessage
-            tool_outputs = []
-            for msg in all_msgs:
-                if isinstance(msg, ToolMessage):
-                    tool_name = getattr(msg, "name", "tool")
-                    tool_outputs.append(f"[{tool_name}]: {msg.content}")
-
-            context = "\n\n".join(tool_outputs) if tool_outputs else "No diagnostic tool outputs recorded."
-            llm = get_llm()
-            summary_prompt = [
-                ("user", f"Diagnostic investigation context:\n{context}\n\nAlert Prompt:\n{query}\n\nPlease summarize findings, status, root cause, and recommended fixes.")
-            ]
-            summary = await llm.ainvoke(summary_prompt)
-            last_ai_text = _extract_text(summary.content)
+        result = await agent_executor.ainvoke(query)
 
         record.status = "COMPLETED"
-        record.response = last_ai_text or "Agent produced no response."
+        record.response = result or "Agent produced no response."
         record.updated_at = time.time()
         _save_incidents()
         print(f"[+] [Incident {incident_id}] Triage completed successfully.")

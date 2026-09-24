@@ -12,8 +12,6 @@ import re
 import json
 from collections import Counter
 from typing import Optional
-from langchain_core.tools import BaseTool
-from langchain_core.callbacks import CallbackManagerForToolRun, AsyncCallbackManagerForToolRun
 
 # Regex to strip common log timestamp prefixes
 # Matches ISO 8601 timestamps, Unix timestamps, and common log date formats
@@ -130,53 +128,3 @@ def _extract_lines_from_json(data) -> list:
     return lines
 
 
-class DedupLokiTool(BaseTool):
-    """
-    Wraps an existing Loki MCP tool and deduplicates its output
-    before the LLM agent consumes it.
-    """
-    _wrapped_tool: BaseTool
-
-    name: str = ""
-    description: str = ""
-
-    class Config:
-        arbitrary_types_allowed = True
-        underscore_attrs_are_private = True
-
-    def __init__(self, wrapped_tool: BaseTool, **kwargs):
-        # Pull name/description from the wrapped tool
-        super().__init__(
-            name=wrapped_tool.name,
-            description=wrapped_tool.description,
-            **kwargs,
-        )
-        self._wrapped_tool = wrapped_tool
-        # Preserve the original tool's schema
-        self.args_schema = wrapped_tool.args_schema
-
-    def _run(self, *args, run_manager: Optional[CallbackManagerForToolRun] = None, **kwargs) -> str:
-        raw = self._wrapped_tool._run(*args, **kwargs)
-        return _dedup_log_text(str(raw))
-
-    async def _arun(self, *args, run_manager: Optional[AsyncCallbackManagerForToolRun] = None, **kwargs) -> str:
-        raw = await self._wrapped_tool._arun(*args, **kwargs)
-        return _dedup_log_text(str(raw))
-
-
-def wrap_loki_tools(tools: list) -> list:
-    """
-    Takes a list of LangChain tools and wraps any Loki log query tools
-    with deduplication. Returns a new list with wrapped tools.
-    """
-    loki_tool_names = {"query_loki_logs", "query_loki"}
-
-    wrapped = []
-    for tool in tools:
-        if tool.name in loki_tool_names:
-            print(f"[+] Wrapping tool '{tool.name}' with log deduplication")
-            wrapped.append(DedupLokiTool(wrapped_tool=tool))
-        else:
-            wrapped.append(tool)
-
-    return wrapped

@@ -6,12 +6,12 @@ metadata:
 data:
   GRAFANA_URL: "http://lgtm:3001"
   # LLM Provider: 'genai', 'vertexai', or 'ollama'
-  LLM_PROVIDER: "genai"
+  LLM_PROVIDER: "vertexai"
   GEMINI_MODEL: "gemini-3.8-flash"
-  VERTEX_MODEL: "gemini-1.5-pro"
-  GOOGLE_CLOUD_LOCATION: "us-central1"
+  VERTEX_MODEL: "gemini-3.7-flash"
+  GOOGLE_CLOUD_LOCATION: "global"
   # Set GOOGLE_CLOUD_PROJECT to your GCP project ID
-  GOOGLE_CLOUD_PROJECT: "ral-harwell26lon-205"
+  GOOGLE_CLOUD_PROJECT: "ral-harwell26lon-216"
   # Ollama fallback settings
   OLLAMA_HOST: "172.20.10.4"
   OLLAMA_MODEL: "qwen3.5:9b-q8_0"

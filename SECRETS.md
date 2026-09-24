@@ -9,6 +9,7 @@ This guide covers all Kubernetes secrets required to run the **AI Triage Agent**
 | Secret Name | Target Pod | Required Keys | Description |
 |-------------|------------|---------------|-------------|
 | `mcp-github-env` | `mcp-github` | `GITHUB_PERSONAL_ACCESS_TOKEN` | Allows the agent to inspect source code and commit history on GitHub. |
+| `gcp-adc` *(Recommended)* | `triage-agent` | `application_default_credentials.json` | ADC credentials for Vertex AI. Created from your local `gcloud auth application-default login`. |
 | `gemini-secret` *(Optional)* | `triage-agent` | `GEMINI_API_KEY` | Needed if using Google Gemini via API key. |
 | `gcp-sa-key` *(Optional)* | `triage-agent` | `key.json` | Needed if using Google Cloud Vertex AI via service account key file. |
 
@@ -71,7 +72,54 @@ If using Google Gemini with an API key:
      --from=secret/gemini-secret
    ```
 
-### Option B: Google Cloud Vertex AI Service Account Key (`gcp-sa-key`)
+### Option B: Google Cloud Vertex AI with Application Default Credentials (`gcp-adc`) *(Recommended)*
+
+If using Vertex AI with your local `gcloud` login credentials (no service account key file needed):
+
+1. Authenticate with `gcloud` on your host machine:
+   ```bash
+   gcloud auth login
+   gcloud auth application-default login
+   ```
+
+2. Create the Kubernetes secret from your local ADC file:
+   ```bash
+   kubectl create secret generic gcp-adc \
+     --from-file=application_default_credentials.json=$HOME/.config/gcloud/application_default_credentials.json \
+     --dry-run=client -o yaml | kubectl apply -f -
+   ```
+
+3. The `agent/kubernetes/deployment.yaml` already mounts this secret. Ensure it contains:
+   ```yaml
+   env:
+   - name: GOOGLE_APPLICATION_CREDENTIALS
+     value: "/var/secrets/google/application_default_credentials.json"
+   volumeMounts:
+   - name: gcp-adc-volume
+     mountPath: /var/secrets/google
+     readOnly: true
+   volumes:
+   - name: gcp-adc-volume
+     secret:
+       secretName: gcp-adc
+       optional: true
+   ```
+
+4. Set the provider and project in the ConfigMap (`agent/kubernetes/configmap.yaml`):
+   ```yaml
+   LLM_PROVIDER: "vertexai"
+   VERTEX_MODEL: "gemini-3.7-flash"
+   GOOGLE_CLOUD_LOCATION: "global"
+   GOOGLE_CLOUD_PROJECT: "your-gcp-project-id"
+   ```
+
+5. Apply and restart:
+   ```bash
+   kubectl apply -f agent/kubernetes/configmap.yaml
+   kubectl rollout restart deployment/triage-agent
+   ```
+
+### Option C: Google Cloud Vertex AI with Service Account Key (`gcp-sa-key`)
 
 If using Vertex AI with a service account JSON file:
 
@@ -99,7 +147,7 @@ If using Vertex AI with a service account JSON file:
        secretName: gcp-sa-key
    ```
 
-### Option C: Local Ollama (No Secrets Required)
+### Option D: Local Ollama (No Secrets Required)
 
 If running Ollama locally on your host machine:
 ```bash

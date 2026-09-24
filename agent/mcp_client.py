@@ -1,23 +1,51 @@
 import os
 import asyncio
-from typing import List
-from langchain_core.tools import BaseTool
+from typing import List, Dict, Any, Callable
 from mcp import ClientSession
 from mcp.client.sse import sse_client
-from langchain_mcp_adapters.tools import load_mcp_tools
-
 from contextlib import AsyncExitStack
-from log_dedup import wrap_loki_tools
+from google.genai import types
+from log_dedup import _dedup_log_text
 
-async def get_mcp_tools(stack: AsyncExitStack) -> List[BaseTool]:
-    """
-    Connects to the remote Kuberenetes MCP servers securely over HTTP SSE
-    and converts their native definitions into LangChain compatible BaseTools.
-    """
+TOOL_WHITELIST = {
+    "kubectl_get", "kubectl_describe", "kubectl_logs", "kubectl_rollout", "ping",
+    "query_loki_logs", "query_prometheus", "list_loki_label_values", "list_loki_label_names",
+    "list_prometheus_metric_names", "list_datasources",
+    "get_file_contents", "search_code", "search_repositories", "list_commits", "get_issue", "list_issues"
+}
+
+class MCPNativeTool:
+    def __init__(self, name: str, description: str, input_schema: dict, session: ClientSession):
+        self.name = name
+        self.description = description
+        self.input_schema = input_schema
+        self.session = session
+        
+    def to_function_declaration(self) -> types.FunctionDeclaration:
+        params = dict(self.input_schema)
+        if "$schema" in params:
+            del params["$schema"]
+        return types.FunctionDeclaration(
+            name=self.name,
+            description=self.description or "",
+            parameters=params
+        )
+        
+    async def invoke(self, arguments: dict) -> str:
+        try:
+            result = await self.session.call_tool(self.name, arguments=arguments)
+            if result.isError:
+                return f"Error: {result.content}"
+            texts = [c.text for c in result.content if hasattr(c, 'text')]
+            output = "\n".join(texts)
+            if self.name in {"query_loki_logs", "query_loki"}:
+                output = _dedup_log_text(output)
+            return output
+        except Exception as e:
+            return f"Error invoking tool: {e}"
+
+async def get_mcp_tools(stack: AsyncExitStack) -> List[MCPNativeTool]:
     tools = []
-    
-    # Environment variable names matching the Kubernetes ConfigMap
-    # Fallbacks provided for local testing via port-forwards
     endpoints = [
         os.environ.get("GITHUB_MCP_URL", "http://localhost:8080"),
         os.environ.get("GRAFANA_MCP_URL", "http://localhost:8082"), 
@@ -25,42 +53,24 @@ async def get_mcp_tools(stack: AsyncExitStack) -> List[BaseTool]:
     ]
     
     for url in endpoints:
-        # Avoid empty strings if some env vars are not set
-        if not url:
-            continue
-            
-        print(f"[+] Connecting to MCP Server at {url}")
+        if not url: continue
         try:
-            # We connect via the async HTTP side channel (SSE)
-            # Most MCP servers expose the SSE endpoint at /sse
             sse_url = f"{url}/sse" if not url.endswith("/sse") else url
-            
-            streams = await stack.enter_async_context(
-                sse_client(sse_url, timeout=300, sse_read_timeout=3600)
-            )
+            streams = await stack.enter_async_context(sse_client(sse_url, timeout=300, sse_read_timeout=3600))
             read_stream, write_stream = streams
-            
             session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
             await session.initialize()
             
-            # Convert the tools exposed by this specific MCP server into LangChain format
-            all_mcp_tools = await load_mcp_tools(session)
-            
-            # Filter tools based on whitelist (DISABLED FOR TESTING - ALLOWING ALL TOOLS)
-            active_tools = all_mcp_tools 
-            
-            print(f"    -> Loaded {len(active_tools)} tools.")
-            
-            # Inform LangGraph that if a tool throws an error
-            for tool in active_tools:
-                tool.handle_tool_error = True
-                
-            tools.extend(active_tools)
+            res = await session.list_tools()
+            for t in res.tools:
+                if t.name in TOOL_WHITELIST:
+                    tools.append(MCPNativeTool(
+                        name=t.name,
+                        description=t.description or "",
+                        input_schema=t.inputSchema,
+                        session=session
+                    ))
         except Exception as e:
             print(f"[!] Failed to connect or load tools from {url}: {e}")
             
-    # Wrap Loki log tools with deduplication to reduce token consumption
-    print(f"[+] All loaded tool names: {[t.name for t in tools]}")
-    tools = wrap_loki_tools(tools)
-
     return tools
