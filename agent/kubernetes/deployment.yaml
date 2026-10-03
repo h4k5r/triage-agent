@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: agent
-        image: triage-agent-agent:latest
+        image: triage-agent-agent:v11
         imagePullPolicy: Never
         ports:
         - containerPort: 8000

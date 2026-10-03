@@ -55,3 +55,7 @@ data/
 logs/
 k6_traffic.log
 agent_output.txt
+
+# Graphify Knowledge Graph artifacts & cache
+graphify-out/
+

@@ -93,10 +93,11 @@ async def lifespan(app: FastAPI):
             print(f"[!] Error loading tools: {e}")
             tools = []
         
-        client, model_name = get_llm()
+        print(f"[+] Loaded {len(tools)} MCP tools: {[t.name for t in tools]}")
+        client, model_name, provider = get_llm()
         
-        print("[+] Building Agent Executor...")
-        triage_agent = NativeTriageAgent(client, model_name, tools)
+        print(f"[+] Building Agent Executor (Provider: {provider}, Model: {model_name})...")
+        triage_agent = NativeTriageAgent(client, model_name, tools, provider=provider)
         
         agent_executor = triage_agent
         mcp_tools = tools
@@ -259,17 +260,12 @@ async def grafana_alert_webhook(payload: GrafanaWebhookPayload):
             f"Summary: {summary}\n"
             f"Description: {description}\n\n"
             f"INVESTIGATION INSTRUCTIONS:\n"
-            f"1. Query Prometheus metrics specifically filtered for {target_metric_filter} (e.g., `increase(http_server_requests_total{target_metric_filter}[5m])` or `http_server_requests_total{target_metric_filter}`) to quantify the error rate for THIS alert window.\n"
+            f"1. Call `query_prometheus(expr='increase(http_server_requests_total{target_metric_filter}[5m])')` to quantify the error rate for this alert window.\n"
             f"   {scope_constraint}\n"
-            f"   NOTE: Focus on the specific error spike for THIS alert window (over the last 5 minutes). Clearly distinguish the new error burst from cumulative historical totals.\n"
-            f"2. Query Loki logs for service '{service}' with STRICT constraints:\n"
-            f"   - Use `limit=50` to cap the number of log lines returned.\n"
-            f"   - Use `start` and `end` parameters to scope to the 5 minutes around {starts_at}.\n"
-            f"   - Use LogQL line filters: e.g., `{{service_name=\"{service}\"}} |= \"error\"` or `|= \"500\"` to fetch only error-relevant lines.\n"
-            f"   - Logs are automatically deduplicated. Do NOT re-fetch the same query.\n"
-            f"3. Inspect Kubernetes pods and events for service '{service}' (e.g. check restarts, crash loops, or resource saturation).\n"
-            f"4. Retrieve the source code repository from the deployment/pod annotations (`github.com/repository`) and subpath (`github.com/path`). For compiled TypeScript/Node apps where logs cite `dist/*.js` (e.g. `dist/app.js`), inspect the corresponding TypeScript source file in `src/*.ts` (e.g. `dummy-app/src/app.ts`) using GitHub MCP tools (`get_file_contents`), cite the actual TypeScript code snippet in your report, and diagnose what is causing the error.\n"
-            f"5. Provide a clear summary: Root Cause, Affected Endpoints/Pods, Source Code Analysis (citing the TypeScript file path and relevant lines of code from GitHub), and Recommended Fix.\n"
+            f"2. Call `query_loki_logs(logql='{{service_name=\"{service}\"}} |= \"error\"', limit=50)` to retrieve recent error logs and stack traces.\n"
+            f"3. Call `kubectl_get(resourceType='pods')` to inspect pod status and health.\n"
+            f"4. Call `get_file_contents(path='dummy-app/src/app.ts')` to inspect the failing TypeScript source code.\n"
+            f"5. Produce a comprehensive markdown SRE Diagnostic Report with: Root Cause, Affected Endpoints/Pods, Telemetry Analysis (metrics & logs), Source Code Analysis (citing repository and file path), and Recommended Fix.\n"
             f"   Ensure your final report contains ONLY information relevant to {scope_desc}; do not include unrelated healthy endpoints or other status code categories."
         )
 
